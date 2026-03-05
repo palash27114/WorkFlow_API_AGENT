@@ -8,6 +8,7 @@ var (
 	ErrInvalidStatusTransition = errors.New("invalid status transition")
 	ErrBlockedByDependencies   = errors.New("task is blocked by incomplete dependencies")
 	ErrCircularDependency      = errors.New("circular dependency detected")
+	ErrDependencyExists        = errors.New("dependency already exists")
 	ErrDeadlineConstraint      = errors.New("deadline must be after all dependency deadlines")
 )
 

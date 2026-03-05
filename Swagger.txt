@@ -1,0 +1,66 @@
+//List is working 
+
+
+///creating Project:-working
+
+{
+  "description": "Workflow management backend",
+  "name": "Task Flow API"
+}
+
+
+//Update :-working
+{
+  "description": "Updated management backend",
+  "name": "Task Flow API"
+}
+
+//Delete :-Working 
+
+
+//For Execution plan :Working
+    //Create task:working
+    //Click on Execution Plan :working 
+
+
+//Risk :Working 
+
+//Stats :Working 
+
+//Get Task :working 
+
+//Create Task:Working
+
+    {
+  "deadline": "2026-03-10T15:30:00Z",
+  "description": "Implement task service logic",
+  "estimated_hours": 6,
+  "priority": "low",
+  "status": "pending",
+  "title": "Implement Task Service"
+}
+
+
+//Update Working 
+//Delete Working
+
+ //Risking 12 Id Project 
+
+
+
+
+
+
+
+
+
+
+A->has to done by 6  A:-2
+B->has to done by 12 B:-12
+but A depends B 
+so it wont be able to work 
+
+A->has to done by 6 but A :12hrs Not possible
+
+now task has deadlines same go wiht priority 
+Depandency:->Deadline :->priority

@@ -98,18 +98,22 @@ func main() {
 
 	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
-	r.Route("/api/v1", func(api chi.Router) {
-		api.Mount("/projects", projectHandler.Routes())
 
-		api.Route("/projects/{project_id}/tasks", func(rt chi.Router) {
-			rt.Post("/", taskHandler.CreateTaskForProject)
-			rt.Get("/", taskHandler.ListTasksForProject)
-			rt.Get("/{id}", taskHandler.GetTask)
-			rt.Put("/{id}", taskHandler.UpdateTask)
-			rt.Delete("/{id}", taskHandler.DeleteTask)
-			rt.Post("/{id}/dependencies", taskHandler.AddDependencyForProject)
-		})
-	})
+
+
+
+	r.Route("/api/v1", func(api chi.Router) {
+    api.Mount("/projects", projectHandler.Routes())
+
+    api.Route("/projects/{project_id}/tasks", func(rt chi.Router) {
+        rt.Post("/", taskHandler.CreateTaskForProject)
+        rt.Get("/", taskHandler.ListTasksForProject)
+        rt.Get("/{id}", taskHandler.GetTask)
+        rt.Put("/{id}", taskHandler.UpdateTask)
+        rt.Delete("/{id}", taskHandler.DeleteTask)
+        rt.Post("/{id}/dependencies", taskHandler.AddDependencyForProject)
+    })
+})
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.HTTPPort,

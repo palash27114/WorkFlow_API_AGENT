@@ -148,6 +148,8 @@ definitions:
     - TaskStatusBlocked
   response.ErrorResponse:
     properties:
+      code:
+        type: string
       error:
         type: string
     type: object
@@ -349,12 +351,12 @@ paths:
       summary: Get project stats
       tags:
       - projects
-  /projects/{id}/tasks:
+  /projects/{project_id}/tasks:
     get:
       parameters:
       - description: Project ID
         in: path
-        name: id
+        name: project_id
         required: true
         type: integer
       produces:
@@ -383,7 +385,7 @@ paths:
       parameters:
       - description: Project ID
         in: path
-        name: id
+        name: project_id
         required: true
         type: integer
       - description: Task
@@ -410,22 +412,14 @@ paths:
       summary: Create task
       tags:
       - tasks
-  /tasks/{id}:
-    delete:
-      parameters:
-      - description: Task ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      responses:
-        "204":
-          description: No Content
-      summary: Delete task
-      tags:
-      - tasks
+  /projects/{project_id}/tasks/{id}:
     get:
       parameters:
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
       - description: Task ID
         in: path
         name: id
@@ -442,13 +436,18 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-      summary: Get task
+      summary: Get task within a project
       tags:
       - tasks
     put:
       consumes:
       - application/json
       parameters:
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
       - description: Task ID
         in: path
         name: id
@@ -475,14 +474,19 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-      summary: Update task
+      summary: Update task within a project
       tags:
       - tasks
-  /tasks/{id}/dependencies:
+  /projects/{project_id}/tasks/{id}/dependencies:
     post:
       consumes:
       - application/json
       parameters:
+      - description: Project ID
+        in: path
+        name: project_id
+        required: true
+        type: integer
       - description: Task ID
         in: path
         name: id
@@ -507,7 +511,7 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-      summary: Add task dependency
+      summary: Add task dependency within a project
       tags:
       - tasks
 swagger: "2.0"

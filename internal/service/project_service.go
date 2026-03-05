@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"taskflow/internal/graph"
@@ -188,6 +189,43 @@ func (s *projectService) GetRisks(ctx context.Context, projectID uint) ([]RiskyT
 	now := time.Now()
 	const hoursPerDay = 8.0
 
+	// prereqHours[t] = max remaining-hours along any dependency path ending at t (excluding t)
+	// This approximates how much work must be completed before task t can start.
+	prereqHours := make(map[uint]float64, len(tasks))
+	parents := make(map[uint][]uint, len(tasks))
+	for _, d := range deps {
+		parents[d.TaskID] = append(parents[d.TaskID], d.DependsOnTaskID)
+	}
+	if plan, err := graph.GetExecutionPlan(projectID, tasks, deps); err == nil {
+		remaining := func(task models.Task) float64 {
+			if task.Status == models.TaskStatusCompleted {
+				return 0
+			}
+			if task.EstimatedHours <= 0 {
+				return 0
+			}
+			return task.EstimatedHours
+		}
+		for _, node := range plan {
+			t, ok := idToTask[node.TaskID]
+			if !ok {
+				continue
+			}
+			maxParent := 0.0
+			for _, p := range parents[t.ID] {
+				pt, ok := idToTask[p]
+				if !ok {
+					continue
+				}
+				candidate := prereqHours[p] + remaining(pt)
+				if candidate > maxParent {
+					maxParent = candidate
+				}
+			}
+			prereqHours[t.ID] = maxParent
+		}
+	}
+
 	var risks []RiskyTask
 
 	for _, t := range tasks {
@@ -210,21 +248,22 @@ func (s *projectService) GetRisks(ctx context.Context, projectID uint) ([]RiskyT
 			continue
 		}
 
-		loadPerDay := remainingHours / daysUntilDeadline
-		if loadPerDay > hoursPerDay {
-			risks = append(risks, RiskyTask{
-				TaskID: t.ID,
-				Title:  t.Title,
-				Reason: "required daily workload exceeds capacity",
-			})
-			continue
-		}
-
-		// check if any dependency is itself overdue or close to deadline
+		// dependency-driven risks: overdue blockers and deadline misalignment
+		dependencyBlocked := false
 		for _, depID := range depsByTask[t.ID] {
 			depTask, ok := idToTask[depID]
-			if !ok || depTask.Deadline == nil {
+			if !ok || depTask.Status == models.TaskStatusCompleted || depTask.Deadline == nil {
 				continue
+			}
+			// If a dependency's deadline is after this task's deadline, this task is effectively infeasible.
+			if depTask.Deadline.After(*t.Deadline) {
+				risks = append(risks, RiskyTask{
+					TaskID: t.ID,
+					Title:  t.Title,
+					Reason: fmt.Sprintf("blocked by dependency '%s' (%.1fh) whose deadline is after this task's deadline", depTask.Title, depTask.EstimatedHours),
+				})
+				dependencyBlocked = true
+				break
 			}
 			if depTask.Deadline.Before(now) && depTask.Status != models.TaskStatusCompleted {
 				risks = append(risks, RiskyTask{
@@ -232,8 +271,34 @@ func (s *projectService) GetRisks(ctx context.Context, projectID uint) ([]RiskyT
 					Title:  t.Title,
 					Reason: "blocked by overdue dependency",
 				})
+				dependencyBlocked = true
 				break
 			}
+		}
+		if dependencyBlocked {
+			continue
+		}
+
+		// capacity check, accounting for prerequisite work on the critical dependency chain
+		blockedDays := prereqHours[t.ID] / hoursPerDay
+		availableDays := daysUntilDeadline - blockedDays
+		if availableDays <= 0 {
+			risks = append(risks, RiskyTask{
+				TaskID: t.ID,
+				Title:  t.Title,
+				Reason: "deadline unreachable due to dependency workload",
+			})
+			continue
+		}
+
+		loadPerDay := remainingHours / availableDays
+		if loadPerDay > hoursPerDay {
+			risks = append(risks, RiskyTask{
+				TaskID: t.ID,
+				Title:  t.Title,
+				Reason: "required daily workload exceeds capacity",
+			})
+			continue
 		}
 	}
 

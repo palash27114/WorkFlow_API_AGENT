@@ -273,7 +273,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/projects/{id}/tasks": {
+        "/projects/{project_id}/tasks": {
             "get": {
                 "produces": [
                     "application/json"
@@ -286,7 +286,7 @@ const docTemplate = `{
                     {
                         "type": "integer",
                         "description": "Project ID",
-                        "name": "id",
+                        "name": "project_id",
                         "in": "path",
                         "required": true
                     }
@@ -330,7 +330,7 @@ const docTemplate = `{
                     {
                         "type": "integer",
                         "description": "Project ID",
-                        "name": "id",
+                        "name": "project_id",
                         "in": "path",
                         "required": true
                     },
@@ -366,7 +366,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/tasks/{id}": {
+        "/projects/{project_id}/tasks/{id}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -374,8 +374,15 @@ const docTemplate = `{
                 "tags": [
                     "tasks"
                 ],
-                "summary": "Get task",
+                "summary": "Get task within a project",
                 "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Project ID",
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "type": "integer",
                         "description": "Task ID",
@@ -409,8 +416,15 @@ const docTemplate = `{
                 "tags": [
                     "tasks"
                 ],
-                "summary": "Update task",
+                "summary": "Update task within a project",
                 "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Project ID",
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "type": "integer",
                         "description": "Task ID",
@@ -448,29 +462,9 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
-            "delete": {
-                "tags": [
-                    "tasks"
-                ],
-                "summary": "Delete task",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Task ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
             }
         },
-        "/tasks/{id}/dependencies": {
+        "/projects/{project_id}/tasks/{id}/dependencies": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -481,8 +475,15 @@ const docTemplate = `{
                 "tags": [
                     "tasks"
                 ],
-                "summary": "Add task dependency",
+                "summary": "Add task dependency within a project",
                 "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Project ID",
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "type": "integer",
                         "description": "Task ID",
@@ -742,6 +743,9 @@ const docTemplate = `{
         "response.ErrorResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "string"
+                },
                 "error": {
                     "type": "string"
                 }

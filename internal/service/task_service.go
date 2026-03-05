@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"taskflow/internal/graph"
 	"taskflow/internal/models"
 	"taskflow/internal/repository"
 	pkgErrors "taskflow/pkg/errors"
@@ -125,6 +127,38 @@ func (s *taskService) AddDependency(ctx context.Context, taskID uint, dependsOnT
 	// must belong to same project
 	if task.ProjectID != depTask.ProjectID {
 		return pkgErrors.ErrDeadlineConstraint
+	}
+
+	projectID := task.ProjectID
+
+	// load all tasks and deps for the project to check for cycle
+	tasks, err := s.taskRepo.FindByProjectID(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	deps, err := s.depRepo.FindByProjectID(ctx, projectID)
+	if err != nil {
+		return err
+	}
+
+	// reject duplicate dependency
+	for _, d := range deps {
+		if d.TaskID == taskID && d.DependsOnTaskID == dependsOnTaskID {
+			return pkgErrors.ErrDependencyExists
+		}
+	}
+
+	// check if adding this dependency would create a cycle
+	depsWithNew := append(deps, models.TaskDependency{
+		TaskID:          taskID,
+		DependsOnTaskID: dependsOnTaskID,
+	})
+	_, err = graph.GetExecutionPlan(projectID, tasks, depsWithNew)
+	if err != nil {
+		if errors.Is(err, pkgErrors.ErrCircularDependency) {
+			return pkgErrors.ErrCircularDependency
+		}
+		return err
 	}
 
 	dep := &models.TaskDependency{

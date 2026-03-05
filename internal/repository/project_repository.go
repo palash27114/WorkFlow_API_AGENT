@@ -30,7 +30,7 @@ func (r *projectRepository) Create(ctx context.Context, project *models.Project)
 
 func (r *projectRepository) FindAll(ctx context.Context) ([]models.Project, error) {
 	var projects []models.Project
-	if err := r.db.WithContext(ctx).Find(&projects).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("Tasks").Find(&projects).Error; err != nil {
 		return nil, err
 	}
 	return projects, nil
@@ -38,7 +38,7 @@ func (r *projectRepository) FindAll(ctx context.Context) ([]models.Project, erro
 
 func (r *projectRepository) FindByID(ctx context.Context, id uint) (*models.Project, error) {
 	var project models.Project
-	if err := r.db.WithContext(ctx).First(&project, id).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("Tasks").First(&project, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
 		}

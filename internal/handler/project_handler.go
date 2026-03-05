@@ -2,10 +2,13 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
+	goValidator "github.com/go-playground/validator/v10"
 	"go.uber.org/zap"
 
 	"taskflow/internal/models"
@@ -63,12 +66,13 @@ type createProjectRequest struct {
 func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	var req createProjectRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid JSON payload")
+		response.ErrorWithCode(w, http.StatusBadRequest, response.CodeInvalidRequest, "Invalid JSON in request body. Please send a valid JSON object with 'name' and optional 'description'.")
 		return
 	}
 
 	if err := h.validator.Struct(req); err != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed")
+		msg := validationErrorMessage(err)
+		response.ErrorWithCode(w, http.StatusBadRequest, response.CodeValidationError, msg)
 		return
 	}
 
@@ -79,7 +83,7 @@ func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.svc.CreateProject(r.Context(), project); err != nil {
 		h.logger.Error("create project failed", zap.Error(err))
-		response.Error(w, http.StatusInternalServerError, "could not create project")
+		response.ErrorWithCode(w, http.StatusInternalServerError, response.CodeInternalError, "Could not create project. Please try again later.")
 		return
 	}
 
@@ -96,7 +100,11 @@ func (h *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 	projects, err := h.svc.ListProjects(r.Context())
 	if err != nil {
 		h.logger.Error("list projects failed", zap.Error(err))
-		response.Error(w, http.StatusInternalServerError, "could not list projects")
+		response.ErrorWithCode(w, http.StatusInternalServerError, response.CodeInternalError, "Could not list projects. Please try again later.")
+		return
+	}
+	if len(projects) == 0 {
+		response.ErrorWithCode(w, http.StatusNotFound, response.CodeEmptyResult, "There are no projects. Create a project first.")
 		return
 	}
 	response.JSON(w, http.StatusOK, projects)
@@ -114,18 +122,18 @@ func (h *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 func (h *ProjectHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 	id, err := parseUintParam(chi.URLParam(r, "id"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid id")
+		response.ErrorWithCode(w, http.StatusBadRequest, response.CodeInvalidRequest, "Invalid project ID in URL. Please use a positive number.")
 		return
 	}
 
 	project, err := h.svc.GetProject(r.Context(), id)
 	if err != nil {
-		if err == pkgErrors.ErrNotFound {
-			response.Error(w, http.StatusNotFound, "project not found")
+		if errors.Is(err, pkgErrors.ErrNotFound) {
+			response.ErrorWithCode(w, http.StatusNotFound, response.CodeNotFound, "Project not found. Check that the project ID exists.")
 			return
 		}
 		h.logger.Error("get project failed", zap.Error(err))
-		response.Error(w, http.StatusInternalServerError, "could not get project")
+		response.ErrorWithCode(w, http.StatusInternalServerError, response.CodeInternalError, "Could not fetch project. Please try again later.")
 		return
 	}
 
@@ -151,18 +159,19 @@ type updateProjectRequest struct {
 func (h *ProjectHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	id, err := parseUintParam(chi.URLParam(r, "id"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid id")
+		response.ErrorWithCode(w, http.StatusBadRequest, response.CodeInvalidRequest, "Invalid project ID in URL. Please use a positive number.")
 		return
 	}
 
 	var req updateProjectRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid JSON payload")
+		response.ErrorWithCode(w, http.StatusBadRequest, response.CodeInvalidRequest, "Invalid JSON in request body. Please send a valid JSON object with 'name' and optional 'description'.")
 		return
 	}
 
 	if err := h.validator.Struct(req); err != nil {
-		response.Error(w, http.StatusBadRequest, "validation failed")
+		msg := validationErrorMessage(err)
+		response.ErrorWithCode(w, http.StatusBadRequest, response.CodeValidationError, msg)
 		return
 	}
 
@@ -173,12 +182,12 @@ func (h *ProjectHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.UpdateProject(r.Context(), project); err != nil {
-		if err == pkgErrors.ErrNotFound {
-			response.Error(w, http.StatusNotFound, "project not found")
+		if errors.Is(err, pkgErrors.ErrNotFound) {
+			response.ErrorWithCode(w, http.StatusNotFound, response.CodeNotFound, "Project not found. Check that the project ID exists.")
 			return
 		}
 		h.logger.Error("update project failed", zap.Error(err))
-		response.Error(w, http.StatusInternalServerError, "could not update project")
+		response.ErrorWithCode(w, http.StatusInternalServerError, response.CodeInternalError, "Could not update project. Please try again later.")
 		return
 	}
 
@@ -195,13 +204,13 @@ func (h *ProjectHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 func (h *ProjectHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	id, err := parseUintParam(chi.URLParam(r, "id"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid id")
+		response.ErrorWithCode(w, http.StatusBadRequest, response.CodeInvalidRequest, "Invalid project ID in URL. Please use a positive number.")
 		return
 	}
 
 	if err := h.svc.DeleteProject(r.Context(), id); err != nil {
 		h.logger.Error("delete project failed", zap.Error(err))
-		response.Error(w, http.StatusInternalServerError, "could not delete project")
+		response.ErrorWithCode(w, http.StatusInternalServerError, response.CodeInternalError, "Could not delete project. Please try again later.")
 		return
 	}
 
@@ -220,21 +229,24 @@ func (h *ProjectHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 func (h *ProjectHandler) ExecutionPlan(w http.ResponseWriter, r *http.Request) {
 	id, err := parseUintParam(chi.URLParam(r, "id"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid id")
+		response.ErrorWithCode(w, http.StatusBadRequest, response.CodeInvalidRequest, "Invalid project ID in URL. Please use a positive number.")
 		return
 	}
 
 	plan, err := h.svc.GetExecutionPlan(r.Context(), id)
 	if err != nil {
-		if err == pkgErrors.ErrCircularDependency {
-			response.Error(w, http.StatusBadRequest, "circular dependency detected")
+		if errors.Is(err, pkgErrors.ErrCircularDependency) {
+			response.ErrorWithCode(w, http.StatusBadRequest, response.CodeCircularDependency, "Cannot compute execution plan: circular dependency detected. Ensure task dependencies do not form a cycle (e.g. A depends on B, B depends on C, C depends on A).")
 			return
 		}
 		h.logger.Error("get execution plan failed", zap.Error(err))
-		response.Error(w, http.StatusInternalServerError, "could not compute execution plan")
+		response.ErrorWithCode(w, http.StatusInternalServerError, response.CodeInternalError, "Could not compute execution plan. Please try again later.")
 		return
 	}
-
+	if len(plan) == 0 {
+		response.ErrorWithCode(w, http.StatusNotFound, response.CodeEmptyResult, "There is nothing to show. This project has no tasks yet. Add tasks first to get an execution plan.")
+		return
+	}
 	response.JSON(w, http.StatusOK, plan)
 }
 
@@ -249,14 +261,14 @@ func (h *ProjectHandler) ExecutionPlan(w http.ResponseWriter, r *http.Request) {
 func (h *ProjectHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	id, err := parseUintParam(chi.URLParam(r, "id"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid id")
+		response.ErrorWithCode(w, http.StatusBadRequest, response.CodeInvalidRequest, "Invalid project ID in URL. Please use a positive number.")
 		return
 	}
 
 	stats, err := h.svc.GetStats(r.Context(), id)
 	if err != nil {
 		h.logger.Error("get stats failed", zap.Error(err))
-		response.Error(w, http.StatusInternalServerError, "could not compute stats")
+		response.ErrorWithCode(w, http.StatusInternalServerError, response.CodeInternalError, "Could not compute project stats. Please try again later.")
 		return
 	}
 
@@ -274,17 +286,20 @@ func (h *ProjectHandler) Stats(w http.ResponseWriter, r *http.Request) {
 func (h *ProjectHandler) Risks(w http.ResponseWriter, r *http.Request) {
 	id, err := parseUintParam(chi.URLParam(r, "id"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid id")
+		response.ErrorWithCode(w, http.StatusBadRequest, response.CodeInvalidRequest, "Invalid project ID in URL. Please use a positive number.")
 		return
 	}
 
 	risks, err := h.svc.GetRisks(r.Context(), id)
 	if err != nil {
 		h.logger.Error("get risks failed", zap.Error(err))
-		response.Error(w, http.StatusInternalServerError, "could not compute risks")
+		response.ErrorWithCode(w, http.StatusInternalServerError, response.CodeInternalError, "Could not compute project risks. Please try again later.")
 		return
 	}
-
+	if len(risks) == 0 {
+		response.ErrorWithCode(w, http.StatusNotFound, response.CodeEmptyResult, "There is nothing to show. No risks detected for this project.")
+		return
+	}
 	response.JSON(w, http.StatusOK, risks)
 }
 
@@ -294,5 +309,25 @@ func parseUintParam(value string) (uint, error) {
 		return 0, err
 	}
 	return uint(id64), nil
+}
+
+// validationErrorMessage builds a user-friendly message from validator errors (e.g. "Field 'name' is required; Field 'title' must be a valid value.").
+func validationErrorMessage(err error) string {
+	var valErr goValidator.ValidationErrors
+	if !errors.As(err, &valErr) {
+		return "Validation failed. Check that all required fields are present and valid."
+	}
+	var parts []string
+	for _, e := range valErr {
+		field := e.Field()
+		tag := e.Tag()
+		switch tag {
+		case "required":
+			parts = append(parts, "Field '"+field+"' is required")
+		default:
+			parts = append(parts, "Field '"+field+"': "+tag)
+		}
+	}
+	return "Validation failed. " + strings.Join(parts, "; ") + "."
 }
 
